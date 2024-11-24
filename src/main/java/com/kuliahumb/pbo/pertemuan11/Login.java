@@ -1,68 +1,67 @@
 package com.kuliahumb.pbo.pertemuan11;
 
+import com.kuliahumb.pbo.pertemuan11.entity.User;
 import com.kuliahumb.pbo.pertemuan11.util.DBUtil;
 
 import javax.swing.*;
 import java.sql.Connection;
-import java.sql.SQLException;
-import java.sql.Statement;
+import java.sql.ResultSet;
 
 public class Login extends JFrame {
-
-    private JTextField textUsername;
-    private JPasswordField textPassword;
+    private JPanel mainPanel;
+    private JTextField txUsername;
+    private JPasswordField txPassword;
     private JButton loginButton;
     private JButton cancelButton;
-    private JPanel mainPanel;
 
-    private final Connection connection;
-
-    public Login() throws SQLException {
-        connection = DBUtil.getConnection();
-        textUsername.requestFocus();
-
-        setContentPane(mainPanel);
+    public Login() {
         setTitle("Login");
+        setContentPane(mainPanel);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        pack();
+        setVisible(true);
 
+        txUsername.requestFocus();
         loginButton.addActionListener(e -> {
-            String username = textUsername.getText();
-            String password = new String(textPassword.getPassword());
+            String username = txUsername.getText();
+            String password = new String(txPassword.getPassword());
 
-            if (!username.isEmpty() && !password.isEmpty()) {
-                try {
-                    if (validateLogin(username, password)) {
-                        JOptionPane.showMessageDialog(null, "Login Success");
-                    } else {
-                        JOptionPane.showMessageDialog(null, "Invalid Username or Password");
-                        textUsername.requestFocus();
-                    }
-                } catch (SQLException ex) {
-                    throw new RuntimeException(ex);
-                }
+            User user = validateLogin(username, password);
+            if (user != null) {
+                new Dashboard(user);
+                dispose();
             } else {
-                JOptionPane.showMessageDialog(null, "Username dan Password must be filled");
-                textUsername.requestFocus();
+                JOptionPane.showMessageDialog(null, "Invalid username or password", "Error", JOptionPane.ERROR_MESSAGE);
             }
         });
 
-        cancelButton.addActionListener(e -> {
-            textUsername.setText("");
-            textPassword.setText("");
-        });
+        cancelButton.addActionListener(e -> System.exit(0));
     }
 
-    private boolean validateLogin(String username, String password) throws SQLException {
-        Statement statement = connection.createStatement();
-        String query = "SELECT * FROM user WHERE username = '" + username + "' AND password = '" + password + "'";
-        return statement.executeQuery(query).next();
+    private User validateLogin(String username, String password) {
+        try (Connection connection = DBUtil.getConnection()) {
+            String query = "SELECT * FROM user WHERE username = '" + username + "' AND password = '" + password + "'";
+            ResultSet resultSet = connection.createStatement().executeQuery(query);
+
+            if (resultSet.next()) {
+                return new User(
+                        resultSet.getLong("id"),
+                        resultSet.getString("username"),
+                        resultSet.getString("password"),
+                        resultSet.getString("email"),
+                        resultSet.getString("role")
+                );
+            } else {
+                return null;
+            }
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(null, "Error: " + e.getMessage());
+            return null;
+        }
     }
 
-    public static void main(String[] args) throws SQLException {
-        Login login = new Login();
-        login.pack();
-        login.setVisible(true);
-//        login.setExtendedState(JFrame.MAXIMIZED_BOTH);
+    public static void main(String[] args) {
+        new Login();
     }
 
 }

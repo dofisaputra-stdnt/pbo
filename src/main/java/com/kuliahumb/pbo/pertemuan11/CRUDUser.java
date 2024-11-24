@@ -1,17 +1,16 @@
 package com.kuliahumb.pbo.pertemuan11;
 
-import com.kuliahumb.pbo.pertemuan11.util.DBUtil;
+import com.kuliahumb.pbo.pertemuan11.service.DataService;
+import com.kuliahumb.pbo.pertemuan11.util.DialogUtil;
 
 import javax.swing.*;
-import java.sql.Connection;
-import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.Objects;
 
 public class CRUDUser extends JFrame {
 
     private JButton newButton;
     private JButton updateButton;
+    private JButton deleteButton;
     private JButton cancelButton;
     private JTextField textUsername;
     private JPasswordField textPassword;
@@ -21,57 +20,137 @@ public class CRUDUser extends JFrame {
     private JTextField textUserId;
     private JPanel mainPanel;
 
-    private final Connection connection;
-
-    public CRUDUser() {
-        connection = DBUtil.getConnection();
-        disableForm();
-
-        setContentPane(mainPanel);
+    public CRUDUser(Dashboard dashboard) {
         setTitle("CRUD User");
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setContentPane(mainPanel);
+        pack();
+        setVisible(true);
+        clearForm();
 
         newButton.addActionListener(e -> {
-            clearForm();
-            enableForm(false);
-            textUsername.requestFocus();
+            if (newButton.getText().equalsIgnoreCase("New")) {
+                clearForm();
+                enableForm(true, false);
+                return;
+            }
 
-            try {
-                insertUser();
-                JOptionPane.showMessageDialog(null, "User has been added");
-            } catch (SQLException ex) {
-                throw new RuntimeException(ex);
+            String username = textUsername.getText();
+            String password = new String(textPassword.getPassword());
+            String retypePassword = new String(textRetypePassword.getPassword());
+            String email = textEmail.getText();
+            String role = Objects.requireNonNull(comboRole.getSelectedItem()).toString();
+
+            if (username.isEmpty() || password.isEmpty() || retypePassword.isEmpty() || email.isEmpty() || role.isEmpty()) {
+                DialogUtil.showError("All fields must be filled!");
+                return;
+            }
+
+            if (!password.equals(retypePassword)) {
+                DialogUtil.showError("Password and Retype Password must be the same!");
+                return;
+            }
+
+            if (DataService.insertUser(username, password, email, role)) {
+                DialogUtil.showInfo("User has been saved!");
+                clearForm();
+                dashboard.refreshTableUser();
+            } else {
+                DialogUtil.showError("Username already exists!");
             }
         });
 
         updateButton.addActionListener(e -> {
-            clearForm();
-            enableForm(true);
+            if (updateButton.getText().equalsIgnoreCase("Update")) {
+                clearForm();
+                enableForm(true, true);
+                return;
+            }
+
+            long userId = Long.parseLong(textUserId.getText());
+            String username = textUsername.getText();
+            String password = new String(textPassword.getPassword());
+            String retypePassword = new String(textRetypePassword.getPassword());
+            String email = textEmail.getText();
+            String role = Objects.requireNonNull(comboRole.getSelectedItem()).toString();
+
+            if (username.isEmpty() || password.isEmpty() || retypePassword.isEmpty() || email.isEmpty() || role.isEmpty()) {
+                DialogUtil.showError("All fields must be filled!");
+                return;
+            }
+
+            if (!password.equals(retypePassword)) {
+                DialogUtil.showError("Password and Retype Password must be the same!");
+                return;
+            }
+
+            if (DataService.updateUser(userId, username, password, email, role)) {
+                DialogUtil.showInfo("User has been updated!");
+                clearForm();
+                dashboard.refreshTableUser();
+            } else {
+                DialogUtil.showError("User not found!");
+            }
+        });
+
+        deleteButton.addActionListener(e -> {
+            if (deleteButton.getText().equalsIgnoreCase("Delete")) {
+                clearForm();
+                enableFormOnlyUserId();
+                return;
+            }
+
+            String userId = textUserId.getText();
+            if (userId.isEmpty()) {
+                DialogUtil.showError("User ID must be filled!");
+                return;
+            }
+
+            if (DataService.deleteUser(Long.parseLong(userId))) {
+                DialogUtil.showInfo("User has been deleted!");
+                clearForm();
+                dashboard.refreshTableUser();
+            } else {
+                DialogUtil.showError("User not found!");
+            }
+        });
+
+        cancelButton.addActionListener(e -> clearForm());
+    }
+
+    private void enableForm(boolean status, boolean isUpdate) {
+        textUserId.setEnabled(status && isUpdate);
+        textUsername.setEnabled(status);
+        textPassword.setEnabled(status);
+        textRetypePassword.setEnabled(status);
+        textEmail.setEnabled(status);
+        comboRole.setEnabled(status);
+
+        if (status && isUpdate) {
             textUserId.requestFocus();
-        });
+            updateButton.setText("Save");
 
-        cancelButton.addActionListener(e -> {
-            clearForm();
-            disableForm();
-        });
+            newButton.setEnabled(false);
+            updateButton.setEnabled(true);
+            deleteButton.setEnabled(false);
+        } else if (status) {
+            textUsername.requestFocus();
+            newButton.setText("Save");
+
+            newButton.setEnabled(true);
+            updateButton.setEnabled(false);
+            deleteButton.setEnabled(false);
+        }
     }
 
-    private void disableForm() {
-        textUserId.setEnabled(false);
-        textUsername.setEnabled(false);
-        textPassword.setEnabled(false);
-        textRetypePassword.setEnabled(false);
-        textEmail.setEnabled(false);
-        comboRole.setEnabled(false);
-    }
+    private void enableFormOnlyUserId() {
+        enableForm(false, false);
+        textUserId.setEnabled(true);
+        textUserId.requestFocus();
+        deleteButton.setText("Confirm");
 
-    private void enableForm(boolean isUpdate) {
-        textUserId.setEnabled(isUpdate);
-        textUsername.setEnabled(true);
-        textPassword.setEnabled(true);
-        textRetypePassword.setEnabled(true);
-        textEmail.setEnabled(true);
-        comboRole.setEnabled(true);
+        newButton.setEnabled(false);
+        updateButton.setEnabled(false);
+        deleteButton.setEnabled(true);
     }
 
     private void clearForm() {
@@ -81,28 +160,16 @@ public class CRUDUser extends JFrame {
         textRetypePassword.setText("");
         textEmail.setText("");
         comboRole.setSelectedIndex(0);
-    }
 
-    private void insertUser() throws SQLException {
-        String username = textUsername.getText();
-        String password = new String(textPassword.getPassword());
-        String email = textEmail.getText();
-        String role = Objects.requireNonNull(comboRole.getSelectedItem()).toString();
+        newButton.setText("New");
+        updateButton.setText("Update");
+        deleteButton.setText("Delete");
 
-        if (username.isEmpty() || password.isEmpty() || email.isEmpty()) {
-            JOptionPane.showMessageDialog(null, "Username, Password, and Email must be filled");
-            return;
-        }
+        newButton.setEnabled(true);
+        updateButton.setEnabled(true);
+        deleteButton.setEnabled(true);
 
-        Statement statement = connection.createStatement();
-        String query = "INSERT INTO user (username, password, email, role) VALUES ('" + username + "', '" + password + "', '" + email + "', '" + role + "')";
-        statement.executeUpdate(query);
-    }
-
-    public static void main(String[] args) {
-        CRUDUser frame = new CRUDUser();
-        frame.pack();
-        frame.setVisible(true);
+        enableForm(false, false);
     }
 
 }
